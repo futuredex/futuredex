@@ -279,7 +279,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
             require(balanceOf(_msgSender()) >= value, "BEP20 : transfer amount exceeds allowance");
             uint256 valueUSDT = _usdtSC.balanceOf(address(this)) - getK()/(balanceOf(address(this)) + value);
             _usdtSC.transfer( _msgSender(), valueUSDT);
-            transfer(address(this), value);
+            _transfer( _msgSender(), address(this), value);
             return valueUSDT;
         } else {
             return 0;
