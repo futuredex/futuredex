@@ -22,6 +22,9 @@ contract pairToken is Context {
     mapping (address => uint8) private _future_type_order;
     mapping (address => uint8) private _is_liquidator;
     mapping (address => uint) private _time_order;
+    
+    uint256 private _sum_long_vol;
+    uint256 private _sum_short_vol;
     //
     // constant
     uint8 constant LONG = 0;
@@ -44,35 +47,53 @@ contract pairToken is Context {
     }
     //
     function getPricePair() public view returns(uint256) {
-        uint256 price = _usdt_sc.balanceOf(_lp_pair_token_ad) / _second_token_sc.balanceOf(_lp_pair_token_ad);
+        uint256 price = _usdt_real_sc.balanceOf(_lp_pair_token_ad) / _second_token_sc.balanceOf(_lp_pair_token_ad);
         return price;
     }
+    function getLimitOrder() public view returns(uint256) {
+        return _usdt_real_sc.balanceOf(_lp_pair_token_ad)/2;
+    }
     //
-    function futureOrder(uint256 value, uint8 rate, uint8 type_order) public {
+    function futureOrder(uint256 value, uint8 rate, uint8 type_order) public returns (bool) {
         require(value > 0 , " transfer amount zero");
         require(rate > 1, "future rate must be greater than 1");
         require(_usdt_sc.allowance(_msgSender(), address(this)) >= value, "transfer amount exceeds allowance" );
+        require(_future_vol_order[_msgSender()] == 0, "require user to have no position");
         if(_future_vol_order[_msgSender()] == 0){
+            if(type_order == LONG){
+                if(_sum_long_vol + value * rate > getLimitOrder()){
+                    return false;
+                }
+            } else if(type_order == SHORT){
+                if(_sum_short_vol + value * rate > getLimitOrder()){
+                    return false;
+                }
+            }
             _future_vol_order[_msgSender()] = value;
             _future_price_order[_msgSender()] = getPricePair();
-            _future_type_order[_msgSender()] = type_order;
             _future_rate_order[_msgSender()] = rate;
             _time_order[_msgSender()] = block.timestamp;
-        } else if(_future_vol_order[_msgSender()] > 0 && _future_type_order[_msgSender()] == LONG ){
-            if(type_order == LONG){
-                _future_price_order[_msgSender()] = (_future_price_order[_msgSender()]*_future_vol_order[_msgSender()] + value*getPricePair() )/(_future_vol_order[_msgSender()]+value);
-                _future_vol_order[_msgSender()] = _future_vol_order[_msgSender()] + value;
-                 _time_order[_msgSender()] = block.timestamp;
-            } else if (type_order == SHORT){
-                
-            }
-        } else if(_future_vol_order[_msgSender()] > 0 && _future_type_order[_msgSender()] == SHORT){
-            if(type_order == LONG){
-                
-            } else if (type_order == SHORT){
-                
-            }
+            
+            _future_type_order[_msgSender()] = type_order;
+            _usdt_sc.transferFrom(_msgSender(), _root_sc, value);
+            return true;
         }
+        return false;
+        // else if(_future_vol_order[_msgSender()] > 0 && _future_type_order[_msgSender()] == LONG ){
+        //     if(type_order == LONG){
+        //         _future_price_order[_msgSender()] = (_future_price_order[_msgSender()]*_future_vol_order[_msgSender()] + value*getPricePair() )/(_future_vol_order[_msgSender()]+value);
+        //         _future_vol_order[_msgSender()] = _future_vol_order[_msgSender()] + value;
+        //          _time_order[_msgSender()] = block.timestamp;
+        //     } else if (type_order == SHORT){
+                
+        //     }
+        // } else if(_future_vol_order[_msgSender()] > 0 && _future_type_order[_msgSender()] == SHORT){
+        //     if(type_order == LONG){
+                
+        //     } else if (type_order == SHORT){
+                
+        //     }
+        // }
     }
     //
     function closePosition() public onlyUserInFuture(_msgSender()) {
